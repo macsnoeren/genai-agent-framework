@@ -1,0 +1,3 @@
+@echo off
+echo Starten van de AI Agent...
+python agent.py %*
