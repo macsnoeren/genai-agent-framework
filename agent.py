@@ -6,14 +6,16 @@ from typing import Dict, Any, Optional, List, Union
 import logging
 import requests
 import json
+import shutil
+import argparse
 
 # Voeg de 'lib' directory toe aan sys.path, als deze niet al is toegevoegd
 if str(Path(__file__).parent / "lib") not in sys.path:
     sys.path.append(str(Path(__file__).parent / "lib"))
 
-from docdialog_client import DocumentDialogueClient
+from lib.docdialog_client import DocumentDialogueClient
 from lib.ollama_client import OllamaClient
-from ai_agent import AIAgent
+from lib.ai_agent import AIAgent
 
 # Configureer logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -30,9 +32,80 @@ def load_config():
             return json.load(f)
     return {}
 
+def extract_file_content(file_path: Path) -> str:
+    """
+    Extraheert tekst uit .txt, .docx en .xlsx bestanden voor gebruik in de prompt.
+    """
+    ext = file_path.suffix.lower()
+    try:
+        if ext == '.txt':
+            return file_path.read_text(encoding='utf-8')
+        elif ext == '.docx':
+            import docx  # pip install python-docx
+            doc = docx.Document(file_path)
+            return "\n".join([para.text for para in doc.paragraphs])
+        elif ext == '.xlsx':
+            import openpyxl  # pip install openpyxl
+            wb = openpyxl.load_workbook(file_path, data_only=True)
+            content = []
+            for sheet_name in wb.sheetnames:
+                ws = wb[sheet_name]
+                content.append(f"--- Tabblad: {sheet_name} ---")
+                for row in ws.iter_rows(values_only=True):
+                    # Converteer rij naar CSV-stijl string
+                    line = ",".join([str(cell) if cell is not None else "" for cell in row])
+                    content.append(line)
+            return "\n".join(content)
+        else:
+            logger.warning(f"Bestandstype {ext} wordt niet ondersteund voor tekstextractie.")
+            return ""
+    except Exception as e:
+        logger.error(f"Fout bij extraheren van {file_path.name}: {e}")
+        return ""
+
+def load_agent_config(config_filename: str):
+    config_path = Path(config_filename)
+    # Als het bestand niet direct gevonden wordt, zoek dan in de script directory
+    if not config_path.exists():
+        config_path = Path(__file__).parent / config_filename
+
+    if config_path.exists():
+        with open(config_path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    raise FileNotFoundError(f"Configuratiebestand '{config_filename}' niet gevonden.")
+
+def generate_report(data: Dict[str, Any], template_path: Path, output_path: Path):
+    """
+    Genereert een Word-document op basis van een template en JSON data.
+    """
+    try:
+        from docxtpl import DocxTemplate
+        if not template_path.exists():
+            logger.warning(f"Template niet gevonden op {template_path}, overslaan rapportage.")
+            return
+
+        doc = DocxTemplate(template_path)
+        doc.render(data)
+        doc.save(output_path)
+        print(f"Rapport gegenereerd: {output_path.name}")
+    except ImportError:
+        logger.error("docxtpl niet geïnstalleerd. Run: pip install docxtpl")
+    except Exception as e:
+        logger.error(f"Fout bij genereren rapport: {e}")
+
 def main():
+    parser = argparse.ArgumentParser(description="Draai de AI Agent batch verwerking met een specifieke configuratie.")
+    parser.add_argument(
+        "config", 
+        nargs="?", 
+        default="agents/agent.json", 
+        help="Pad naar het agent JSON configuratiebestand (default: agents/agent.json)"
+    )
+    args = parser.parse_args()
+
     config = load_config()
     access_token = config.get("ACCESS_TOKEN", "VERVANG_DOOR_JE_ECHTE_TOKEN")
+    agent_config = load_agent_config(args.config)
 
     # Voorbeeld: Gebruik DocumentDialogue
     # client = DocumentDialogueClient(access_token)
@@ -44,43 +117,106 @@ def main():
 
     print(f"Agent gestart met provider: {type(client).__name__}")
 
-    print("Modellen ophalen...")
+    print("Beschikbare modellen ophalen...")
     models = agent.list_models()
-    print(f"Beschikbare modellen: {[m['id'] for m in models]}")
+    
+    selected_model = agent_config.get("model")
+
+    if selected_model:
+        print(f"Model geselecteerd uit configuratie: {selected_model}")
+    elif models:
+        print("Geen model opgegeven in agent.json. Beschikbare modellen:")
+        for i, m in enumerate(models):
+            print(f" {i + 1}) {m.get('id', '')}")
+        
+        while True:
+            choice = input(f"\nSelecteer een model (1-{len(models)}): ").strip()
+            if choice.isdigit():
+                idx = int(choice) - 1
+                if 0 <= idx < len(models):
+                    selected_model = models[idx].get("id")
+                    print(f"Geselecteerd model: {selected_model}")
+                    break
+            print("Ongeldige keuze, probeer het opnieuw.")
+    else:
+        print("Geen modellen gevonden.")
+        return
 
     print("\nNieuwe chat aanmaken...")
-    chat_id = agent.create_chat()
+    chat_id = agent.create_chat(model_id=selected_model)
     print(f"Chat aangemaakt met ID: {chat_id}")
     logger.info(f"Actieve chat_id voor agent: {chat_id}")
     
-    print("\nStart agent interactie (typ 'exit' om te stoppen):")
-    print("De agent zal proberen complexe taken op te lossen via Plan -> Execute -> Verify.")
-    while True:
-        user_input = input("\nJij (Agent Taak): ").strip()
-        if user_input.lower() in ["exit", "quit", "q"]:
-            break
+    # Paden instellen vanuit configuratie
+    input_dir = Path(agent_config.get("input_directory", "data/input"))
+    output_dir = Path(agent_config.get("output_directory", "data/output"))
+    done_dir = Path(agent_config.get("done_directory", "data/done"))
+    report_dir = Path(agent_config.get("report_directory", "data/reports"))
 
+    # Zorg dat mappen bestaan
+    for d in [input_dir, output_dir, done_dir, report_dir]:
+        d.mkdir(parents=True, exist_ok=True)
+
+    files = [f for f in input_dir.iterdir() if f.is_file()]
+    if not files:
+        print(f"Geen bestanden gevonden in {input_dir}")
+        return
+
+    print(f"\nStart verwerking van {len(files)} bestanden...")
+
+    for file_path in files:
+        print(f"\n--- Bezig met: {file_path.name} ---")
         try:
-            # Gebruik de run_agent methode voor multi-step reasoning
-            response = agent.run_agent(user_input, max_iterations=3)
-            role = response.get("role", "assistant")
-            content = response.get("content", "")
-            print(f"{role.capitalize()}: {content}\n")
-        except requests.HTTPError as http_err:
-            logger.error(f"HTTP-fout: {http_err.response.status_code} - {http_err.response.text}")
-            print(f"HTTP-fout: {http_err.response.status_code} - {http_err.response.text}")
-            if http_err.response.status_code == 401:
-                print("→ Waarschijnlijk is je access token verlopen of ongeldig.")
-            continue
-        except ValueError as ve:
-            logger.error(f"Configuratiefout: {ve}")
-            print(f"Fout: {ve}")
-            continue
-        except Exception as e:
-            logger.error(f"Onbekende fout bij agent run: {e}", exc_info=True)
-            print(f"Onbekende fout bij agent run: {e}")
+            # 4. Bestand uploaden of inhoud extraheren als fallback
+            file_content = ""
+            try:
+                agent.upload_file(str(file_path))
+            except (NotImplementedError, Exception) as e:
+                logger.info(f"Upload niet mogelijk voor {file_path.name} ({e}). Inhoud wordt handmatig geëxtraheerd.")
+                file_content = extract_file_content(file_path)
+
+            # Stel de taak samen voor de agent
+            task_prompt = (
+                f"Instructie: {agent_config['instructions']}\n"
+                f"Bestand om te verwerken: {file_path.name}\n"
+                f"Verwachte output formaat: {agent_config['output_description']}\n"
+            )
+
+            if file_content:
+                task_prompt += f"\nInhoud van het bestand:\n---\n{file_content}\n---\n"
             
-            continue
+            task_prompt += "\nGeef alleen de rauwe JSON terug in je uiteindelijke antwoord."
+
+            # Gebruik de run_agent methode voor multi-step reasoning
+            response = agent.run_agent(task_prompt, max_iterations=3)
+            content = response.get("content", "")
+
+            # 5. Output opslaan als JSON
+            output_file = output_dir / f"{file_path.stem}.json"
+            output_file.write_text(content, encoding='utf-8')
+
+            # 5b. Optioneel rapport genereren in huisstijl
+            template_path = agent_config.get("template_path")
+            if template_path:
+                try:
+                    # Parse de content om er zeker van te zijn dat het valide JSON is
+                    json_data = json.loads(content)
+                    generate_report(json_data, Path(template_path), report_dir / f"{file_path.stem}.docx")
+                except json.JSONDecodeError:
+                    logger.warning(f"Kon content voor {file_path.name} niet naar JSON parsen voor rapportage.")
+            
+            # 6. Verplaatsen naar de 'done' directory
+            shutil.move(str(file_path), str(done_dir / file_path.name))
+            print(f"Succesvol verwerkt: {output_file.name}")
+
+        except Exception as e:
+            logger.error(f"Fout bij verwerken van {file_path.name}: {e}")
+            print(f"Fout bij {file_path.name}: {e}")
+
+    # 7. Chat verwijderen na succesvolle verwerking
+    print("\nOpschonen...")
+    agent.delete_current_chat()
+    print("Chat verwijderd op server/client. Batch-verwerking voltooid.")
 
 if __name__ == "__main__":
     main()

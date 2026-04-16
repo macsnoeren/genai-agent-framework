@@ -29,7 +29,12 @@ class OllamaClient(BaseLLMClient):
         if chat_id not in self.history:
             self.history[chat_id] = []
         
-        model_to_use = model or self.chat_models.get(chat_id) or "llama3"
+        model_to_use = model or self.chat_models.get(chat_id)
+        
+        if not model_to_use:
+            # Haal het eerste beschikbare model op als er echt niets is gekozen
+            available = self.list_models()
+            model_to_use = available[0]["id"] if available else "llama3"
 
         self.history[chat_id].append({"role": "user", "content": text})
         
@@ -55,3 +60,10 @@ class OllamaClient(BaseLLMClient):
         # Ollama ondersteunt standaard geen RAG via document upload in de /chat API.
         # Dit zou een implementatie vereisen met een vector DB of tools.
         raise NotImplementedError("Ollama provider ondersteunt momenteel geen directe document uploads.")
+
+    def delete_chat(self, chat_id: str) -> Dict[str, Any]:
+        if chat_id in self.history:
+            del self.history[chat_id]
+        if chat_id in self.chat_models:
+            del self.chat_models[chat_id]
+        return {"message": "Chat deleted successfully", "id": chat_id}

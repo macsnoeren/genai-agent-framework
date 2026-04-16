@@ -1,11 +1,12 @@
 # docdialog_client.py
 import requests
 from typing import Dict, Any, Optional, List, Union
+from lib.base_client import BaseLLMClient
 
 BASE_URL = "https://docdialog-data-apim.azure-api.net/dd-chat/v1"
 
 
-class DocumentDialogueClient:
+class DocumentDialogueClient(BaseLLMClient):
     def __init__(self, access_token: str):
         self.session = requests.Session()
         self.session.headers.update({

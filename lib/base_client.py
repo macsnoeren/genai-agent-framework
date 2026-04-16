@@ -24,3 +24,10 @@ class BaseLLMClient(ABC):
         Uploadt een document naar een specifieke chat.
         """
         pass
+
+    @abstractmethod
+    def delete_chat(self, chat_id: str) -> Dict[str, Any]:
+        """
+        Verwijdert een chat sessie.
+        """
+        pass

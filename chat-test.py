@@ -5,10 +5,6 @@ from pathlib import Path
 from typing import Dict, Any, Optional, List, Union
 import requests
 import json
-
-# Voeg de 'lib' directory toe aan sys.path
-sys.path.append(str(Path(__file__).parent / "lib"))
-
 from lib.ollama_client import OllamaClient
 
 def load_config():

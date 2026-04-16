@@ -55,6 +55,17 @@ class AIAgent:
         self._current_chat_id = self.client.create_chat(model=chosen_model)
         return self._current_chat_id
 
+    def delete_current_chat(self) -> Dict[str, Any]:
+        """
+        Verwijdert de actieve chat.
+        """
+        if not self._current_chat_id:
+            raise ValueError("Geen actieve chat om te verwijderen.")
+        
+        result = self.client.delete_chat(self._current_chat_id)
+        self._current_chat_id = None
+        return result
+
     def upload_file(self, file_path: str, chat_id: Optional[str] = None) -> Dict[str, Any]:
         """
         Uploadt een bestand naar de chat voor analyse.
