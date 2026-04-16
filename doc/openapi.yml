@@ -1,0 +1,1099 @@
+openapi: '3.0.3'
+info:
+  title: DocumentDialogue Chat Service REST API
+  version: '1.1'
+  description: |
+    RESTful API for managing chats, messages, documents, personas, extensions, prompts, and models.
+    All endpoints require Bearer Token authorization (JWT or Entra ID).
+servers:
+  - url: https://docdialog-data-apim.azure-api.net/dd-chat/v1
+    description: DocumentDialogue Chat Service API
+
+paths:
+  /chats:
+    get:
+      summary: Get All Chats
+      description: |
+        Get all chat threads for the authenticated user.
+
+        **cURL example:**
+        ```bash
+        curl -X GET "https://docdialog-data-apim.azure-api.net/dd-chat/v1/chats" \
+          -H "Authorization: Bearer <your_token>"
+        ```
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  chats:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ChatThread'
+              example:
+                chats:
+                  - id: "abc-123"
+                    name: "Chat about AI"
+                    useName: "John Doe"
+                    createdAt: "2025-06-01T12:00:00Z"
+                    lastMessageAt: "2025-06-01T12:30:00Z"
+                    bookmarked: false
+                    type: "CHAT_THREAD"
+                    personaMessage: ""
+                    personaMessageTitle: "Assistant"
+                    extension: []
+                    isApp: false
+                    model: "chat-gpt-4.1-EU"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+      security:
+        - bearerHttpAuthentication: []
+
+  /:
+    post:
+      summary: Create Chat
+      description: |
+        Create a new chat thread, optionally with a persona and/or extensions.
+
+        **cURL example (empty chat):**
+        ```bash
+        curl -X POST "https://docdialog-data-apim.azure-api.net/dd-chat/v1/" \
+          -H "Authorization: Bearer <your_token>" \
+          -H "Content-Type: application/json" \
+          -d '{}'
+        ```
+
+        **cURL example (with persona):**
+        ```bash
+        curl -X POST "https://docdialog-data-apim.azure-api.net/dd-chat/v1/" \
+          -H "Authorization: Bearer <your_token>" \
+          -H "Content-Type: application/json" \
+          -d '{"personaId": "persona-id-123"}'
+        ```
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                personaId:
+                  type: string
+                  description: DocumentDialogue persona ID
+                extensionId:
+                  type: string
+                  description: Extension ID(s), comma-separated for multiple
+                model:
+                  type: string
+                  description: Optional LLM model override (e.g., chat-gpt-4.1-EU)
+            examples:
+              empty:
+                summary: Create empty chat
+                value: {}
+              withPersona:
+                summary: Create chat with persona
+                value:
+                  personaId: "persona-id-123"
+                  model: "chat-gpt-5.1-EU"
+              withExtension:
+                summary: Create chat with extensions
+                value:
+                  personaId: "persona-id-123"
+                  extensionId: "ext-1,ext-2"
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    description: The ID of the new chat
+              example:
+                id: "chat-abc-123"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+      security:
+        - bearerHttpAuthentication: []
+
+  /{chatId}:
+    parameters:
+      - $ref: '#/components/parameters/chatId'
+    get:
+      summary: Read All Messages (alternative)
+      description: |
+        Get all messages for a specific chat thread (returns array directly).
+
+        **cURL example:**
+        ```bash
+        curl -X GET "https://docdialog-data-apim.azure-api.net/dd-chat/v1/{chatId}" \
+          -H "Authorization: Bearer <your_token>"
+        ```
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ChatMessage'
+              example:
+                - id: "msg-001"
+                  createdAt: "2025-06-01T12:01:00Z"
+                  threadId: "chat-abc-123"
+                  content: "Hello, how can you help me?"
+                  role: "user"
+                  name: ""
+                  type: "CHAT_MESSAGE"
+                  model: "chat-gpt-4.1-EU"
+                - id: "msg-002"
+                  createdAt: "2025-06-01T12:01:05Z"
+                  threadId: "chat-abc-123"
+                  content: "Hello! I'm here to help. What would you like to know?"
+                  role: "assistant"
+                  name: "DocumentDialogue"
+                  type: "CHAT_MESSAGE"
+                  model: "chat-gpt-4.1-EU"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+      security:
+        - bearerHttpAuthentication: []
+    patch:
+      summary: Rename Chat
+      description: |
+        Rename an existing chat thread.
+
+        **cURL example:**
+        ```bash
+        curl -X PATCH "https://docdialog-data-apim.azure-api.net/dd-chat/v1/{chatId}" \
+          -H "Authorization: Bearer <your_token>" \
+          -H "Content-Type: application/json" \
+          -d '{"name": "My Renamed Chat"}'
+        ```
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                  description: The new name for the chat
+            example:
+              name: "My Renamed Chat"
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  chat:
+                    $ref: '#/components/schemas/ChatThread'
+              example:
+                message: "Chat renamed successfully"
+                chat:
+                  id: "chat-abc-123"
+                  name: "My Renamed Chat"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+      security:
+        - bearerHttpAuthentication: []
+    delete:
+      summary: Delete Chat
+      description: |
+        Delete a chat thread and all its messages.
+
+        **cURL example:**
+        ```bash
+        curl -X DELETE "https://docdialog-data-apim.azure-api.net/dd-chat/v1/{chatId}" \
+          -H "Authorization: Bearer <your_token>"
+        ```
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+              example:
+                message: "Chat deleted successfully"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+      security:
+        - bearerHttpAuthentication: []
+
+  /{chatId}/messages:
+    parameters:
+      - $ref: '#/components/parameters/chatId'
+    get:
+      summary: Get Messages
+      description: |
+        Get all messages in a chat thread.
+
+        **cURL example:**
+        ```bash
+        curl -X GET "https://docdialog-data-apim.azure-api.net/dd-chat/v1/{chatId}/messages" \
+          -H "Authorization: Bearer <your_token>"
+        ```
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  messages:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ChatMessage'
+              example:
+                messages:
+                  - id: "msg-001"
+                    createdAt: "2025-06-01T12:01:00Z"
+                    threadId: "chat-abc-123"
+                    content: "What is machine learning?"
+                    role: "user"
+                    name: ""
+                    type: "CHAT_MESSAGE"
+                    model: "chat-gpt-4.1-EU"
+                  - id: "msg-002"
+                    createdAt: "2025-06-01T12:01:05Z"
+                    threadId: "chat-abc-123"
+                    content: "Machine learning is a subset of AI that enables systems to learn from data..."
+                    role: "assistant"
+                    name: "DocumentDialogue"
+                    type: "CHAT_MESSAGE"
+                    model: "chat-gpt-4.1-EU"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+      security:
+        - bearerHttpAuthentication: []
+    post:
+      summary: Create Chat Message
+      description: |
+        Send a message to a chat and receive the AI response (streamed).
+        Supports two content types:
+        - application/json for text-only messages
+        - multipart/form-data for messages with image attachments
+
+        **cURL example (text only):**
+        ```bash
+        curl -X POST "https://docdialog-data-apim.azure-api.net/dd-chat/v1/{chatId}/messages" \
+          -H "Authorization: Bearer <your_token>" \
+          -H "Content-Type: application/json" \
+          -d '{"text": "What is machine learning?"}'
+        ```
+
+        **cURL example (with image via JSON, base64):**
+        ```bash
+        curl -X POST "https://docdialog-data-apim.azure-api.net/dd-chat/v1/{chatId}/messages" \
+          -H "Authorization: Bearer <your_token>" \
+          -H "Content-Type: application/json" \
+          -d '{"text": "Describe this image", "multiModalImage": "data:image/jpeg;base64,/9j/4AAQ..."}'
+        ```
+
+        **cURL example (with image via multipart):**
+        ```bash
+        curl -X POST "https://docdialog-data-apim.azure-api.net/dd-chat/v1/{chatId}/messages" \
+          -H "Authorization: Bearer <your_token>" \
+          -F 'content={"message": "Describe this image"}' \
+          -F 'image=@photo.jpg'
+        ```
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - text
+              properties:
+                text:
+                  type: string
+                  description: The message text
+                persist:
+                  type: string
+                  enum: ["true", "false"]
+                  description: Whether to persist the message. Default is "true"
+                model:
+                  type: string
+                  description: Optional LLM model override
+                multiModalImage:
+                  type: string
+                  description: |
+                    Base64-encoded image data URI (e.g. "data:image/jpeg;base64,/9j/4AAQ...") or
+                    a publicly accessible HTTP(S) URL pointing to an image.
+                    When provided, the message is processed as a multimodal (vision) request.
+                    Supported formats: JPEG, PNG, WebP. Max ~20 MB after decoding.
+            examples:
+              simple:
+                summary: Simple text message
+                value:
+                  text: "What is machine learning?"
+              withModel:
+                summary: Text message with model override
+                value:
+                  text: "Explain quantum computing"
+                  model: "chat-gpt-4.1-EU"
+              noPersist:
+                summary: Ephemeral message (not saved)
+                value:
+                  text: "Quick question"
+                  persist: "false"
+              withImage:
+                summary: Text message with image analysis
+                value:
+                  text: "What do you see in this image?"
+                  multiModalImage: "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQ..."
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - content
+                - image
+              properties:
+                content:
+                  type: string
+                  description: 'JSON string: {"message": "text", "model": "optional-model"}'
+                image:
+                  type: string
+                  format: binary
+                  description: Image file (JPEG, PNG, or WebP, max 20 MB)
+      responses:
+        '200':
+          description: OK (streamed response)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  role:
+                    type: string
+                  content:
+                    type: string
+              example:
+                role: "assistant"
+                content: "Machine learning is a subset of artificial intelligence..."
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '413':
+          description: Payload Too Large — image exceeds 20 MB
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+      security:
+        - bearerHttpAuthentication: []
+
+  /{chatId}/messages/persist:
+    parameters:
+      - $ref: '#/components/parameters/chatId'
+    post:
+      summary: Persist WebRTC Messages
+      description: |
+        Save messages from WebRTC real-time voice sessions into chat history without triggering an AI response.
+
+        **cURL example:**
+        ```bash
+        curl -X POST "https://docdialog-data-apim.azure-api.net/dd-chat/v1/{chatId}/messages/persist" \
+          -H "Authorization: Bearer <your_token>" \
+          -H "Content-Type: application/json" \
+          -d '{"messages": [{"role": "user", "content": "What is the weather?"}, {"role": "assistant", "content": "Let me check..."}]}'
+        ```
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - messages
+              properties:
+                messages:
+                  type: array
+                  items:
+                    type: object
+                    required:
+                      - role
+                      - content
+                    properties:
+                      role:
+                        type: string
+                        enum: [user, assistant, system]
+                      content:
+                        type: string
+                      name:
+                        type: string
+                      multiModalImage:
+                        type: string
+                      model:
+                        type: string
+            example:
+              messages:
+                - role: "user"
+                  content: "What is the weather today?"
+                - role: "assistant"
+                  content: "Let me check the weather for you..."
+                  name: "DocumentDialogue"
+      responses:
+        '200':
+          description: All messages saved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  savedCount:
+                    type: integer
+                  saved:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        role:
+                          type: string
+                        content:
+                          type: string
+                        createdAt:
+                          type: string
+                          format: date-time
+              example:
+                success: true
+                savedCount: 2
+                saved:
+                  - id: "msg-001"
+                    role: "user"
+                    content: "What is the weather today?"
+                    createdAt: "2025-06-01T12:01:00Z"
+                  - id: "msg-002"
+                    role: "assistant"
+                    content: "Let me check the weather for you..."
+                    createdAt: "2025-06-01T12:01:01Z"
+        '207':
+          description: Partial success — some messages failed to save
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  savedCount:
+                    type: integer
+                  totalCount:
+                    type: integer
+                  saved:
+                    type: array
+                    items:
+                      type: object
+                  errors:
+                    type: array
+                    items:
+                      type: object
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+      security:
+        - bearerHttpAuthentication: []
+
+  /{chatId}/documents:
+    parameters:
+      - $ref: '#/components/parameters/chatId'
+    get:
+      summary: List Chat Documents
+      description: |
+        Retrieve all documents attached to a chat thread (used for RAG).
+
+        **cURL example:**
+        ```bash
+        curl -X GET "https://docdialog-data-apim.azure-api.net/dd-chat/v1/{chatId}/documents" \
+          -H "Authorization: Bearer <your_token>"
+        ```
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  documents:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ChatDocument'
+              example:
+                documents:
+                  - id: "doc-001"
+                    name: "report.pdf"
+                    fileId: "file-abc-123"
+                    chatThreadId: "chat-abc-123"
+                    createdAt: "2025-06-01T10:00:00Z"
+                    isEnabled: true
+                    type: "CHAT_DOCUMENT"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+      security:
+        - bearerHttpAuthentication: []
+    post:
+      summary: Upload Document
+      description: |
+        Upload a document to a chat for retrieval-augmented generation (RAG). The document is extracted, chunked, and indexed.
+
+        **cURL example:**
+        ```bash
+        curl -X POST "https://docdialog-data-apim.azure-api.net/dd-chat/v1/{chatId}/documents" \
+          -H "Authorization: Bearer <your_token>" \
+          -F 'file=@report.pdf'
+        ```
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: Document file (max 50 MB by default)
+      responses:
+        '201':
+          description: Document uploaded and indexed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  document:
+                    $ref: '#/components/schemas/ChatDocument'
+                  chunksIndexed:
+                    type: integer
+              example:
+                message: "Document uploaded and indexed successfully"
+                document:
+                  id: "doc-001"
+                  name: "report.pdf"
+                  fileId: "file-abc-123"
+                  chatThreadId: "chat-abc-123"
+                  createdAt: "2025-06-01T10:00:00Z"
+                  isEnabled: true
+                  type: "CHAT_DOCUMENT"
+                chunksIndexed: 42
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+      security:
+        - bearerHttpAuthentication: []
+
+  /personas:
+    get:
+      summary: Get User Personas
+      description: |
+        Get all personas accessible to the authenticated user (public, personal, and shared).
+
+        **cURL example:**
+        ```bash
+        curl -X GET "https://docdialog-data-apim.azure-api.net/dd-chat/v1/personas" \
+          -H "Authorization: Bearer <your_token>"
+        ```
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  personas:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Persona'
+              example:
+                personas:
+                  - id: "persona-001"
+                    name: "Customer Support Assistant"
+                    description: "Helps with customer inquiries"
+                    personaMessage: "You are a helpful customer support agent."
+                    isPublished: true
+                    email: "admin@example.com"
+                    createdAt: "2025-01-15T08:00:00Z"
+                    type: "PERSONA"
+                    hasFiles: 5
+                    shared: 3
+                    member: true
+                    coauthor: false
+                    model: "chat-gpt-4.1-EU"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+      security:
+        - bearerHttpAuthentication: []
+
+  /extensions:
+    get:
+      summary: Get User Extensions
+      description: |
+        Get all extensions accessible to the authenticated user (own and shared).
+
+        **cURL example:**
+        ```bash
+        curl -X GET "https://docdialog-data-apim.azure-api.net/dd-chat/v1/extensions" \
+          -H "Authorization: Bearer <your_token>"
+        ```
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  extensions:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Extension'
+                  ownExtensions:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Extension'
+                  sharedExtensions:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Extension'
+              example:
+                extensions:
+                  - id: "ext-001"
+                    name: "Bing Search"
+                    description: "Search the web using Bing"
+                    isPublished: true
+                    type: "EXTENSION"
+                    createdAt: "2025-03-01T09:00:00Z"
+                ownExtensions:
+                  - id: "ext-001"
+                    name: "Bing Search"
+                    description: "Search the web using Bing"
+                    isPublished: true
+                    type: "EXTENSION"
+                    createdAt: "2025-03-01T09:00:00Z"
+                sharedExtensions: []
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+      security:
+        - bearerHttpAuthentication: []
+
+  /prompts:
+    get:
+      summary: Get User Prompts
+      description: |
+        Get all prompts accessible to the authenticated user (published, personal, and shared).
+
+        **cURL example:**
+        ```bash
+        curl -X GET "https://docdialog-data-apim.azure-api.net/dd-chat/v1/prompts" \
+          -H "Authorization: Bearer <your_token>"
+        ```
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  prompts:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Prompt'
+                  count:
+                    type: integer
+              example:
+                prompts:
+                  - id: "prompt-001"
+                    name: "Summarize Text"
+                    description: "Summarizes long text into key points"
+                    isPublished: true
+                    type: "PROMPT"
+                    createdAt: "2025-02-10T14:00:00Z"
+                    isOwner: true
+                    source: "personal"
+                count: 1
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+      security:
+        - bearerHttpAuthentication: []
+
+  /prompts/{promptId}:
+    parameters:
+      - name: promptId
+        in: path
+        required: true
+        description: The ID of the prompt
+        schema:
+          type: string
+    get:
+      summary: Get Single Prompt
+      description: |
+        Retrieve a specific prompt by ID (must be owned, published, or shared with user).
+
+        **cURL example:**
+        ```bash
+        curl -X GET "https://docdialog-data-apim.azure-api.net/dd-chat/v1/prompts/{promptId}" \
+          -H "Authorization: Bearer <your_token>"
+        ```
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  prompt:
+                    $ref: '#/components/schemas/Prompt'
+              example:
+                prompt:
+                  id: "prompt-001"
+                  name: "Summarize Text"
+                  description: "Summarizes long text into key points"
+                  isPublished: true
+                  type: "PROMPT"
+                  createdAt: "2025-02-10T14:00:00Z"
+                  isOwner: true
+                  source: "personal"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Forbidden — no access to this prompt
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+      security:
+        - bearerHttpAuthentication: []
+
+  /models:
+    get:
+      summary: Get Available Models
+      description: |
+        Retrieve the list of available LLM models and the default model.
+
+        **cURL example:**
+        ```bash
+        curl -X GET "https://docdialog-data-apim.azure-api.net/dd-chat/v1/models" \
+          -H "Authorization: Bearer <your_token>"
+        ```
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  models:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        name:
+                          type: string
+                        description:
+                          type: string
+                  default:
+                    type: string
+                    description: The ID of the default model
+              example:
+                models:
+                  - id: "chat-gpt-4.1-EU"
+                    name: "GPT-4.1 (EU)"
+                    description: "Latest GPT-4.1 model hosted in EU"
+                  - id: "chat-gpt-4o"
+                    name: "GPT-4o"
+                    description: "GPT-4o multimodal model"
+                default: "chat-gpt-4.1-EU"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+      security:
+        - bearerHttpAuthentication: []
+
+components:
+  parameters:
+    chatId:
+      name: chatId
+      in: path
+      required: true
+      description: The ID of the chat thread
+      schema:
+        type: string
+
+  schemas:
+    ChatThread:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        useName:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        lastMessageAt:
+          type: string
+          format: date-time
+        bookmarked:
+          type: boolean
+        isDeleted:
+          type: boolean
+        type:
+          type: string
+        personaMessage:
+          type: string
+        personaMessageTitle:
+          type: string
+        extension:
+          type: array
+          items:
+            type: string
+        isApp:
+          type: boolean
+        applicationId:
+          type: string
+        model:
+          type: string
+
+    ChatMessage:
+      type: object
+      properties:
+        id:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        threadId:
+          type: string
+        content:
+          type: string
+        role:
+          type: string
+          enum: [user, assistant, system]
+        name:
+          type: string
+        multiModalImage:
+          type: string
+        type:
+          type: string
+        model:
+          type: string
+
+    ChatDocument:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        fileId:
+          type: string
+        chatThreadId:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        isEnabled:
+          type: boolean
+        type:
+          type: string
+
+    Persona:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        personaMessage:
+          type: string
+        isPublished:
+          type: boolean
+        email:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        type:
+          type: string
+        hasFiles:
+          type: integer
+        shared:
+          type: integer
+        member:
+          type: boolean
+        coauthor:
+          type: boolean
+        model:
+          type: string
+        appInstanceId:
+          type: string
+
+    Extension:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        isPublished:
+          type: boolean
+        type:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    Prompt:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        isPublished:
+          type: boolean
+        type:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        isOwner:
+          type: boolean
+        source:
+          type: string
+
+  responses:
+    BadRequest:
+      description: Bad Request
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+    Unauthorized:
+      description: Unauthorized — invalid, expired, or missing token
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+    NotFound:
+      description: Not Found
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+    InternalServerError:
+      description: Internal Server Error
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+
+  securitySchemes:
+    bearerHttpAuthentication:
+      description: 'Bearer token — either a JWT from DocumentDialogue UI or an Azure AD/Entra ID access token'
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      
+
+
+  
