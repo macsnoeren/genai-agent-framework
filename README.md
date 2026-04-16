@@ -78,13 +78,32 @@ python chat-test.py
 
 ## Agent Configuratie (`agent.json`)
 
-| Veld | Beschrijving |
-| :--- | :--- |
-| `model` | De ID van het te gebruiken model (bijv. `llama3`). |
-| `instructions` | De hoofdopdracht voor de agent. |
-| `output_description` | Instructie over de gewenste JSON-structuur van het resultaat. |
-| `input_directory` | Waar de te verwerken bestanden staan. |
-| `template_path` | Pad naar het Word-sjabloon voor rapportage. |
+Dit bestand bepaalt hoe de agent zich gedraagt en waar de bestanden worden opgeslagen.
+
+| Veld | Type | Beschrijving |
+| :--- | :--- | :--- |
+| `provider` | string | De LLM provider die gebruikt moet worden (`ollama` of `docdialog`). |
+| `model` | string | De ID van het te gebruiken model (bijv. `llama3` of `gpt-oss:120b-cloud`). |
+| `instructions` | string | De specifieke taakomschrijving voor de agent. |
+| `output_description` | string | Beschrijving van de gewenste JSON-velden voor validatie en rapportage. |
+| `input_directory` | string | Pad naar de map met bronbestanden die verwerkt moeten worden. |
+| `output_directory` | string | Pad waar de resulterende JSON-bestanden worden opgeslagen. |
+| `done_directory` | string | Pad waar de bronbestanden naartoe worden verplaatst na succesvolle verwerking. |
+| `template_path` | string | (Optioneel) Pad naar het `.docx` template voor huisstijl-rapportage. |
+| `report_directory` | string | (Optioneel) Pad waar de gegenereerde Word-rapporten worden opgeslagen. |
+
+### Voorbeeld `agent.json`
+```json
+{
+  "provider": "ollama",
+  "model": "gpt-oss:120b-cloud",
+  "instructions": "Analyseer het document en extraheer actiepunten.",
+  "output_description": "JSON: {\"verslag\": \"string\", \"actiepunten\": [\"string\"]}",
+  "input_directory": "data/input",
+  "output_directory": "data/output",
+  "done_directory": "data/done"
+}
+```
 
 ## Uitbreiden
 
