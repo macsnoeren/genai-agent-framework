@@ -1,27 +1,21 @@
 from typing import Dict, Any, Optional, List, Union
 import logging
-import requests
-from docdialog_client import DocumentDialogueClient
+from lib.base_client import BaseLLMClient
 
 class AIAgent:
     """
-    Een AI-agent die interactie aangaat met de RWE Document Dialogue API.
+    Een modulaire AI-agent die via een provider taken plant, uitvoert en verifieert.
     """
-    def __init__(self, access_token: str, default_model_id: Optional[str] = None, default_prompt: Optional[str] = None):
+    def __init__(self, client: BaseLLMClient, default_model_id: Optional[str] = None, default_prompt: Optional[str] = None):
         """
-        Initialiseert de RWEAIAgent.
+        Initialiseert de AIAgent.
 
         Args:
-            access_token (str): De API-toegangstoken voor de Document Dialogue service.
+            client (BaseLLMClient): Een instantie van een LLM client provider.
             default_model_id (Optional[str]): De ID van het standaardmodel om te gebruiken.
-                                               Indien niet opgegeven, wordt het standaardmodel van de API gebruikt.
             default_prompt (Optional[str]): Een standaard prompt die aan elke taakbeschrijving wordt voorafgegaan.
-                                            Kan worden gebruikt voor algemene instructies of gedrag.
         """
-        if not access_token or access_token == "VERVANG_DOOR_JE_ECHTE_TOKEN":
-            raise ValueError("Gelieve een geldige ACCESS_TOKEN op te geven.")
-
-        self.client = DocumentDialogueClient(access_token)
+        self.client = client
         self._current_chat_id: Optional[str] = None
         self.default_prompt = default_prompt
         self.default_model_id = default_model_id
@@ -42,7 +36,9 @@ class AIAgent:
             List[Dict[str, Any]]: Een lijst met modelinformatie.
         """
         models_info = self.client.list_models()
-        return models_info.get("models", [])
+        if isinstance(models_info, list):
+            return models_info
+        return models_info.get("models", []) if isinstance(models_info, dict) else []
 
     def create_chat(self, model_id: Optional[str] = None) -> str:
         """
@@ -58,6 +54,17 @@ class AIAgent:
         chosen_model = model_id if model_id else self.default_model_id
         self._current_chat_id = self.client.create_chat(model=chosen_model)
         return self._current_chat_id
+
+    def upload_file(self, file_path: str, chat_id: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Uploadt een bestand naar de chat voor analyse.
+        """
+        target_chat_id = chat_id if chat_id else self._current_chat_id
+        if not target_chat_id:
+            raise ValueError("Geen actieve chat. Roep 'create_chat()' aan.")
+        
+        self.logger.info(f"Bestand uploaden: {file_path}")
+        return self.client.upload_document(target_chat_id, file_path)
 
     def send_message(self, message_text: str, chat_id: Optional[str] = None) -> Dict[str, Any]:
         """

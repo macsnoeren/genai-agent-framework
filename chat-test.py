@@ -4,42 +4,59 @@ import sys
 from pathlib import Path
 from typing import Dict, Any, Optional, List, Union
 import requests
+import json
 
 # Voeg de 'lib' directory toe aan sys.path
 sys.path.append(str(Path(__file__).parent / "lib"))
 
-from docdialog_client import DocumentDialogueClient
+from lib.ollama_client import OllamaClient
 
-# Get your access token on the RWE website https://ai.rwe.com/
-ACCESS_TOKEN = "PASTE_HIER_JOUW_ACCESS_TOKEN"  # <-- vervang door je echte token
+def load_config():
+    config_path = Path(__file__).parent / "config.json"
+    if config_path.exists():
+        with open(config_path, 'r') as f:
+            return json.load(f)
+    return {}
 
 def main():
-    if ACCESS_TOKEN == "PASTE_HIER_JOUW_ACCESS_TOKEN":
-        print("⚠️ Vul eerst je ACCESS_TOKEN in bovenaan app.py.")
-        return
+    config = load_config()
+    access_token = config.get("ACCESS_TOKEN", "PASTE_HIER_JOUW_ACCESS_TOKEN")
 
-    client = DocumentDialogueClient(ACCESS_TOKEN)
+    # Voor Ollama gebruiken we de nieuwe provider interface
+    print("Initialiseren Ollama client...")
+    client = OllamaClient(base_url="http://localhost:11434")
+
+    # Voor DocumentDialogue zou het zijn:
+    # from lib.docdialog_client import DocumentDialogueClient
+    # client = DocumentDialogueClient(access_token)
 
     # 1) Modellen ophalen
     try:
-        models_info = client.list_models()
+        models = client.list_models()
     except Exception as e:
         print("Fout bij ophalen van modellen:", e)
         return
 
-    models = models_info.get("models", [])
-    default_model = models_info.get("default")
+    default_model = None
 
     print("Beschikbare modellen:")
-    for m in models:
-        mark = ""
-        if default_model and m.get("id") == default_model:
-            mark = " (default)"
-        print(f" - {m.get('id', '')}: {m.get('name', '')}{mark}")
+    for i, m in enumerate(models):
+        print(f" {i + 1}) {m.get('id', '')} ({m.get('name', '')})")
     print()
-
-    if not default_model and models:
-        default_model = models[0].get("id")
+    
+    if models:
+        while True:
+            choice = input(f"Selecteer een model (1-{len(models)}): ").strip()
+            if choice.isdigit():
+                idx = int(choice) - 1
+                if 0 <= idx < len(models):
+                    default_model = models[idx].get("id")
+                    print(f"Geselecteerd model: {default_model}")
+                    break
+            print("Ongeldige keuze, probeer het opnieuw.")
+    else:
+        print("Geen modellen gevonden.")
+        return
 
     # 2) Chat aanmaken
     try:
@@ -58,7 +75,7 @@ def main():
             break
 
         try:
-            response = client.send_message(chat_id, text=user_text)
+            response = client.send_message(chat_id, text=user_text, model=default_model)
         except requests.HTTPError as http_err:
             print("HTTP-fout:", http_err.response.status_code, http_err.response.text)
             if http_err.response.status_code == 401:

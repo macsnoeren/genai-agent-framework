@@ -5,12 +5,14 @@ from pathlib import Path
 from typing import Dict, Any, Optional, List, Union
 import logging
 import requests
+import json
 
 # Voeg de 'lib' directory toe aan sys.path, als deze niet al is toegevoegd
 if str(Path(__file__).parent / "lib") not in sys.path:
     sys.path.append(str(Path(__file__).parent / "lib"))
 
 from docdialog_client import DocumentDialogueClient
+from lib.ollama_client import OllamaClient
 from ai_agent import AIAgent
 
 # Configureer logging
@@ -21,18 +23,26 @@ logger = logging.getLogger(__name__)
 agent_logger = logging.getLogger('RWEAIAgent')
 agent_logger.setLevel(logging.INFO) # Kan op DEBUG gezet worden voor meer details
 
-# Get your access token on the RWE website https://ai.rwe.com/
-ACCESS_TOKEN = "VERVANG_DOOR_JE_ECHTE_TOKEN"  # <-- VERVANG DOOR JE ECHTE TOKEN
+def load_config():
+    config_path = Path(__file__).parent / "config.json"
+    if config_path.exists():
+        with open(config_path, 'r') as f:
+            return json.load(f)
+    return {}
 
 def main():
-    if ACCESS_TOKEN == "VERVANG_DOOR_JE_ECHTE_TOKEN":
-        print("⚠️ Vul eerst je ACCESS_TOKEN in bovenaan rwe-ai-agent.py.")
-        return
+    config = load_config()
+    access_token = config.get("ACCESS_TOKEN", "VERVANG_DOOR_JE_ECHTE_TOKEN")
 
-    # Voorbeeld van het instellen van een default_prompt
-    # default_agent_instructions = "Zorg ervoor dat al je antwoorden bondig en direct zijn."
-    # agent = RWEAIAgent(ACCESS_TOKEN, default_prompt=default_agent_instructions)
-    agent = AIAgent(ACCESS_TOKEN)
+    # Voorbeeld: Gebruik DocumentDialogue
+    # client = DocumentDialogueClient(access_token)
+    
+    # Voorbeeld: Gebruik Ollama
+    client = OllamaClient(base_url="http://localhost:11434")
+    
+    agent = AIAgent(client)
+
+    print(f"Agent gestart met provider: {type(client).__name__}")
 
     print("Modellen ophalen...")
     models = agent.list_models()
