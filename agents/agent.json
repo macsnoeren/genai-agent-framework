@@ -6,6 +6,6 @@
   "input_directory": "data/input",
   "output_directory": "data/output",
   "done_directory": "data/done",
-  "template_path": "templates/verslag.docx",
+  "template_path": "data/templates/verslag.docx",
   "report_directory": "data/reports"
 }

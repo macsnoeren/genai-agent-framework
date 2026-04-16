@@ -59,25 +59,25 @@ class DocumentDialogueClient(BaseLLMClient):
         if model:
             payload["model"] = model
 
-        resp = self.session.post(f"{BASE_URL}/", json=payload)
+        resp = self.session.post(f"{BASE_URL}/chats", json=payload)
         resp.raise_for_status()
         return resp.json()["id"]
 
     def rename_chat(self, chat_id: str, name: str) -> Dict[str, Any]:
         payload = {"name": name}
-        resp = self.session.patch(f"{BASE_URL}/{chat_id}", json=payload)
+        resp = self.session.patch(f"{BASE_URL}/chats/{chat_id}", json=payload)
         resp.raise_for_status()
         return resp.json()
 
     def delete_chat(self, chat_id: str) -> Dict[str, Any]:
-        resp = self.session.delete(f"{BASE_URL}/{chat_id}")
+        resp = self.session.delete(f"{BASE_URL}/chats/{chat_id}")
         resp.raise_for_status()
         return resp.json()
 
     # ---------- Messages ----------
 
     def get_messages(self, chat_id: str) -> List[Dict[str, Any]]:
-        resp = self.session.get(f"{BASE_URL}/{chat_id}/messages")
+        resp = self.session.get(f"{BASE_URL}/chats/{chat_id}/messages")
         resp.raise_for_status()
         data = resp.json()
         return data.get("messages", []) if isinstance(data, dict) else data
@@ -91,7 +91,7 @@ class DocumentDialogueClient(BaseLLMClient):
         persist: bool = True,
         multi_modal_image: Optional[str] = None,
     ) -> Dict[str, Any]:
-        url = f"{BASE_URL}/{chat_id}/messages"
+        url = f"{BASE_URL}/chats/{chat_id}/messages"
         payload: Dict[str, Any] = {"text": text}
 
         if not persist:
@@ -109,12 +109,12 @@ class DocumentDialogueClient(BaseLLMClient):
     # ---------- Documents ----------
 
     def list_documents(self, chat_id: str) -> Dict[str, Any]:
-        resp = self.session.get(f"{BASE_URL}/{chat_id}/documents")
+        resp = self.session.get(f"{BASE_URL}/chats/{chat_id}/documents")
         resp.raise_for_status()
         return resp.json()
 
     def upload_document(self, chat_id: str, file_path: str) -> Dict[str, Any]:
-        url = f"{BASE_URL}/{chat_id}/documents"
+        url = f"{BASE_URL}/chats/{chat_id}/documents"
         with open(file_path, "rb") as f:
             files = {"file": (file_path, f)}
             resp = self.session.post(url, files=files)
