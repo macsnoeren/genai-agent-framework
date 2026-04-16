@@ -107,11 +107,18 @@ def main():
     access_token = config.get("ACCESS_TOKEN", "VERVANG_DOOR_JE_ECHTE_TOKEN")
     agent_config = load_agent_config(args.config)
 
-    # Voorbeeld: Gebruik DocumentDialogue
-    # client = DocumentDialogueClient(access_token)
-    
-    # Voorbeeld: Gebruik Ollama
-    client = OllamaClient(base_url="http://localhost:11434")
+    # Selecteer de provider op basis van de configuratie
+    provider_type = agent_config.get("provider", "ollama").lower()
+
+    if provider_type == "docdialog":
+        if access_token == "VERVANG_DOOR_JE_ECHTE_TOKEN":
+            logger.error("DocumentDialogue geselecteerd maar geen geldige ACCESS_TOKEN gevonden in config.json.")
+            return
+        client = DocumentDialogueClient(access_token)
+    else:
+        # Standaard fallback naar Ollama
+        ollama_url = config.get("OLLAMA_BASE_URL", "http://localhost:11434")
+        client = OllamaClient(base_url=ollama_url)
     
     agent = AIAgent(client)
 
@@ -125,22 +132,11 @@ def main():
     if selected_model:
         print(f"Model geselecteerd uit configuratie: {selected_model}")
     elif models:
-        print("Geen model opgegeven in agent.json. Beschikbare modellen:")
-        for i, m in enumerate(models):
-            print(f" {i + 1}) {m.get('id', '')}")
-        
-        while True:
-            choice = input(f"\nSelecteer een model (1-{len(models)}): ").strip()
-            if choice.isdigit():
-                idx = int(choice) - 1
-                if 0 <= idx < len(models):
-                    selected_model = models[idx].get("id")
-                    print(f"Geselecteerd model: {selected_model}")
-                    break
-            print("Ongeldige keuze, probeer het opnieuw.")
+        selected_model = models[0].get("id")
+        print(f"Geen model opgegeven in agent.json. Automatisch eerste model geselecteerd: {selected_model}")
     else:
-        print("Geen modellen gevonden.")
-        return
+        print("Geen modellen gevonden op de client. We gaan door zonder specifiek model.")
+        selected_model = None
 
     print("\nNieuwe chat aanmaken...")
     chat_id = agent.create_chat(model_id=selected_model)
