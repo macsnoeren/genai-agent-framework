@@ -27,7 +27,8 @@ De operationele instellingen voor deze agent zijn als volgt:
   "input_directory": "data/input/notulen",
   "output_directory": "data/output",
   "done_directory": "data/done",
-  "report_directory": "data/reports"
+  "report_directory": "data/reports",
+  "collection_file_path": "data/output/vergaderingen_master.jsonl"
 }
 ```
 

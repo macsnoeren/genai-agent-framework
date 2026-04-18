@@ -90,6 +90,7 @@ Dit bestand bepaalt hoe de agent zich gedraagt en waar de bestanden worden opges
 | `output_directory` | string | Pad waar de resulterende JSON-bestanden worden opgeslagen. |
 | `done_directory` | string | Pad waar de bronbestanden naartoe worden verplaatst na succesvolle verwerking. |
 | `template_path` | string | (Optioneel) Pad naar het `.docx` template voor huisstijl-rapportage. |
+| `collection_file_path` | string | (Optioneel) Pad naar een 'verzamelbak' bestand (bijv. .jsonl) voor geaggregeerde resultaten over meerdere sessies. |
 | `report_directory` | string | (Optioneel) Pad waar de gegenereerde Word-rapporten worden opgeslagen. |
 
 ### Voorbeeld `agent.json`

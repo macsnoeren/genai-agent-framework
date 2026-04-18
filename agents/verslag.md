@@ -29,7 +29,8 @@ De operationele parameters voor de Verslag Agent:
   "input_directory": "data/input",
   "output_directory": "data/output",
   "done_directory": "data/done",
-  "report_directory": "data/reports"
+  "report_directory": "data/reports",
+  "collection_file_path": "data/output/verslagen_master.jsonl"
 }
 ```
 

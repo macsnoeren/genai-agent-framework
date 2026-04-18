@@ -1,3 +1,3 @@
 @echo off
 echo Starten van de AI Agent...
-python agent.py %*
+C:/Users/macsnoer/AppData/Local/Microsoft/WindowsApps/python3.13.exe agent.py %*

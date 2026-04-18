@@ -3,11 +3,16 @@
 import sys
 from pathlib import Path
 from typing import Dict, Any, Optional, List, Union
+from datetime import datetime
 import logging
 import requests
 import json
 import shutil
 import argparse
+
+# Voorkom UnicodeEncodeErrors door UTF-8 te forceren voor de console output
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding='utf-8')
 
 # Voeg de 'lib' directory toe aan sys.path, als deze niet al is toegevoegd
 if str(Path(__file__).parent / "lib") not in sys.path:
@@ -18,7 +23,14 @@ from lib.ollama_client import OllamaClient
 from lib.ai_agent import AIAgent
 
 # Configureer logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(
+    level=logging.INFO, 
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler("data/agent_log.log", encoding='utf-8'),
+        logging.StreamHandler(sys.stdout)
+    ]
+)
 logger = logging.getLogger(__name__)
 
 # Definieer een aparte logger voor de agent's interne stappen
@@ -151,9 +163,12 @@ def main():
 
     # Zorg dat mappen bestaan
     for d in [input_dir, output_dir, done_dir, report_dir]:
-        d.mkdir(parents=True, exist_ok=True)
+        try:
+            d.mkdir(parents=True, exist_ok=True)
+        except Exception as e:
+            logger.info(f"Informatie: Kon map {d} niet aanmaken of benaderen: {e}")
 
-    files = [f for f in input_dir.iterdir() if f.is_file()]
+    files = [f for f in input_dir.rglob('*') if f.is_file()]
     if not files:
         print(f"Geen bestanden gevonden in {input_dir}")
         return
@@ -161,7 +176,8 @@ def main():
     print(f"\nStart verwerking van {len(files)} bestanden...")
 
     for file_path in files:
-        print(f"\n--- Bezig met: {file_path.name} ---")
+        rel_path = file_path.relative_to(input_dir)
+        print(f"\n--- Bezig met: {rel_path} ---")
         try:
             # 4. Bestand uploaden of inhoud extraheren als fallback
             file_content = ""
@@ -187,8 +203,9 @@ def main():
             response = agent.run_agent(task_prompt, max_iterations=3)
             content = response.get("content", "")
 
-            # 5. Output opslaan als JSON
-            output_file = output_dir / f"{file_path.stem}.json"
+            # 5. Output opslaan als JSON (behoud structuur)
+            output_file = output_dir / rel_path.with_suffix('.json')
+            output_file.parent.mkdir(parents=True, exist_ok=True)
             output_file.write_text(content, encoding='utf-8')
 
             # 5b. Optioneel rapport genereren in huisstijl
@@ -197,13 +214,43 @@ def main():
                 try:
                     # Parse de content om er zeker van te zijn dat het valide JSON is
                     json_data = json.loads(content)
-                    generate_report(json_data, Path(template_path), report_dir / f"{file_path.stem}.docx")
+                    report_path = report_dir / rel_path.with_suffix('.docx')
+                    report_path.parent.mkdir(parents=True, exist_ok=True)
+                    generate_report(json_data, Path(template_path), report_path)
                 except json.JSONDecodeError:
                     logger.warning(f"Kon content voor {file_path.name} niet naar JSON parsen voor rapportage.")
             
+            # 5c. Optioneel data toevoegen aan de verzamelbak (collection file)
+            collection_path_str = agent_config.get("collection_file_path")
+            if collection_path_str:
+                try:
+                    json_data = json.loads(content)
+                    db_entry = json_data.get("database_file")
+                    if db_entry:
+                        collection_path = Path(collection_path_str)
+                        collection_path.parent.mkdir(parents=True, exist_ok=True)
+                        with open(collection_path, "a", encoding="utf-8") as f:
+                            f.write(json.dumps(db_entry) + "\n")
+                        print(f"Data toegevoegd aan verzamelbak: {collection_path.name}")
+                except Exception as e:
+                    logger.error(f"Fout bij bijwerken verzamelbak voor {file_path.name}: {e}")
+
             # 6. Verplaatsen naar de 'done' directory
-            shutil.move(str(file_path), str(done_dir / file_path.name))
-            print(f"Succesvol verwerkt: {output_file.name}")
+            if done_dir.exists():
+                try:
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M")
+                    target_done_filename = f"{timestamp}_{file_path.name}"
+                    target_done_path = done_dir / rel_path.parent / target_done_filename
+
+                    target_done_path.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.move(str(file_path), str(target_done_path))
+                    print(f"Succesvol verwerkt: {output_file.name}")
+                except Exception as e:
+                    logger.info(f"Informatie: Bestand kon niet worden verplaatst naar done: {e}")
+                    print(f"Succesvol verwerkt (niet verplaatst naar done): {output_file.name}")
+            else:
+                logger.info(f"Informatie: Done directory '{done_dir}' bestaat niet. Bestand is niet verplaatst.")
+                print(f"Succesvol verwerkt (done map ontbreekt): {output_file.name}")
 
         except Exception as e:
             logger.error(f"Fout bij verwerken van {file_path.name}: {e}")
