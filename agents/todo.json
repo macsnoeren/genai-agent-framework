@@ -4,6 +4,6 @@
   "instructions": "Scan het document op alle taken, actiepunten en 'to do' items. Identificeer of een taak 'belangrijk' is. Geef belangrijke taken de prioriteit 'hoog', overige taken 'normaal'. Voeg een veld 'status' toe met de waarde 'open'. Sorteer de items in de output zo dat 'hoog' bovenaan staat.",
   "output_description": "{\n  \"analyse\": \"string\",\n  \"todos\": [{\"taak\": \"string\", \"prioriteit\": \"hoog/normaal\", \"status\": \"open\"}],\n  \"database_file\": {\n    \"datum\": \"string\",\n    \"bron\": \"string\",\n    \"items\": [{\"taak\": \"string\", \"prioriteit\": \"hoog/normaal\", \"status\": \"open\"}]\n  }\n}",
   "input_directory": "data/input/todos",
-  "output_directory": "data/output/todos",
+  "done_directory": "data/done/todos",
   "collection_file_path": "data/output/todos/todo_master_list.jsonl"
 }
