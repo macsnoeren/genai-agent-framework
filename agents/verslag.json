@@ -1,0 +1,11 @@
+{
+  "provider": "ollama",
+  "model": "gpt-oss:120b-cloud",
+  "instructions": "Analyseer het document en maak hier een mooi verslag van. Als er actiepunten zijn verzamel deze dan",
+  "output_description": "Een geldig JSON object: {\"verslag\": \"string\"}, {\"actiepunten\": [\"string\"]}",
+  "input_directory": "data/input",
+  "output_directory": "data/output",
+  "done_directory": "data/done",
+  "template_path": "data/templates/verslag.docx",
+  "report_directory": "data/reports"
+}
