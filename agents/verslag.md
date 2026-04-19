@@ -6,18 +6,21 @@ De **Verslag Agent** is een veelzijdige AI-configuratie binnen het framework die
 *   **Analytisch:** Het identificeren van de essentie in complexe documenten.
 *   **Synthese:** Het herschrijven van informatie naar een gestructureerd en leesbaar narratief.
 *   **Taakextractie:** Het isoleren van actiepunten en opdrachten die in de tekst verborgen zijn.
+*   **Idee-uitwerking:** Het herkennen van 'Idee:' tags en deze uitwerken tot mogelijke vervolgstappen.
 
 ## 2. Prompt Logica
 De agent hanteert de instructies uit `verslag.json` om een kwalitatieve samenvatting te genereren:
 1.  **Begrijpend Lezen:** De AI fungeert als een assistent die de context van het brondocument begrijpt.
 2.  **Narratieve Opbouw:** De focus ligt op het creëren van een "mooi verslag", wat duidt op een vloeiende schrijfstijl in plaats van enkel opsommingen.
 3.  **Lijstvorming:** Specifieke aandacht voor actiepunten die aan het einde van het verslag worden gegroepeerd.
-4.  **Validatie:** De output wordt strikt beperkt tot een JSON-object met de velden `verslag` en `actiepunten`.
+4.  **Idee-analyse:** Bij het herkennen van de prefix 'Idee:' zal de agent dit punt niet alleen samenvatten, maar proactief meedenken over de uitwerking.
+5.  **Validatie:** De output wordt strikt beperkt tot een JSON-object inclusief de nieuwe `ideeen` array.
 
 ## 3. JSON Output Schema
 De agent levert de data aan volgens dit schema:
 *   `verslag`: Een string bevattende de volledige tekstuele analyse/samenvatting.
 *   `actiepunten`: Een array van strings, waarbij elk item een uniek actiepunt vertegenwoordigt.
+*   `ideeen`: Een lijst met objecten bevattende de `titel` van het idee en een gedetailleerde `uitwerking`.
 
 ## 4. Configuratie
 De operationele parameters voor de Verslag Agent:
@@ -65,6 +68,17 @@ De algemene voortgang is goed. Erik is bezig met het inrichten van de testomgevi
 {% endfor %}
 {% else %}
 *Geen expliciete actiepunten gevonden in het brondocument.*
+{% endif %}
+
+---
+
+{% if ideeen %}
+## Mogelijke Vervolgstappen
+{% for item in ideeen %}
+### Idee: {{ item.titel }}
+**Uitwerking:** {{ item.uitwerking }}
+
+{% endfor %}
 {% endif %}
 
 ---
