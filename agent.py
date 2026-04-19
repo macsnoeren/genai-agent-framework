@@ -105,31 +105,23 @@ def generate_report(data: Dict[str, Any], template_path: Path, output_path: Path
     except Exception as e:
         logger.error(f"Fout bij genereren rapport: {e}")
 
-def main():
-    parser = argparse.ArgumentParser(description="Draai de AI Agent batch verwerking met een specifieke configuratie.")
-    parser.add_argument(
-        "config", 
-        nargs="?", 
-        default="agents/agent.json", 
-        help="Pad naar het agent JSON configuratiebestand (default: agents/agent.json)"
-    )
-    args = parser.parse_args()
-
-    config = load_config()
-    access_token = config.get("ACCESS_TOKEN", "VERVANG_DOOR_JE_ECHTE_TOKEN")
-    agent_config = load_agent_config(args.config)
+def run_agent_batch(config_filename: str, access_token: str, global_config: Dict[str, Any]):
+    """
+    Voert de batchverwerking uit voor een specifieke agent configuratie.
+    """
+    agent_config = load_agent_config(config_filename)
 
     # Selecteer de provider op basis van de configuratie
     provider_type = agent_config.get("provider", "ollama").lower()
 
     if provider_type == "docdialog":
         if access_token == "VERVANG_DOOR_JE_ECHTE_TOKEN":
-            logger.error("DocumentDialogue geselecteerd maar geen geldige ACCESS_TOKEN gevonden in config.json.")
+            logger.error(f"DocumentDialogue geselecteerd voor {config_filename} maar geen geldige ACCESS_TOKEN gevonden.")
             return
         client = DocumentDialogueClient(access_token)
     else:
         # Standaard fallback naar Ollama
-        ollama_url = config.get("OLLAMA_BASE_URL", "http://localhost:11434")
+        ollama_url = global_config.get("OLLAMA_BASE_URL", "http://localhost:11434")
         client = OllamaClient(base_url=ollama_url)
     
     agent = AIAgent(client)
@@ -260,6 +252,38 @@ def main():
     print("\nOpschonen...")
     agent.delete_current_chat()
     print("Chat verwijderd op server/client. Batch-verwerking voltooid.")
+
+def main():
+    parser = argparse.ArgumentParser(description="Draai de AI Agent batch verwerking met een specifieke configuratie.")
+    parser.add_argument(
+        "config", 
+        nargs="?", 
+        help="Pad naar het agent JSON configuratiebestand. Indien niet opgegeven worden alle JSON bestanden in 'agents/' uitgevoerd."
+    )
+    args = parser.parse_args()
+
+    global_config = load_config()
+    access_token = global_config.get("ACCESS_TOKEN", "VERVANG_DOOR_JE_ECHTE_TOKEN")
+
+    if args.config:
+        config_files = [args.config]
+    else:
+        # Scan de agents directory naar JSON bestanden
+        agents_dir = Path(__file__).parent / "agents"
+        config_files = [str(f) for f in agents_dir.glob("*.json")]
+        
+        if not config_files:
+            logger.error("Geen agent configuratiebestanden gevonden in de 'agents/' directory.")
+            return
+
+    for config_file in config_files:
+        print(f"\n" + "="*50)
+        print(f"START VERWERKING AGENT: {config_file}")
+        print("="*50 + "\n")
+        try:
+            run_agent_batch(config_file, access_token, global_config)
+        except Exception as e:
+            logger.error(f"Fout bij verwerken van agent {config_file}: {e}")
 
 if __name__ == "__main__":
     main()
