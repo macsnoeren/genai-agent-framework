@@ -1,78 +1,79 @@
 # Documentatie: Todo Agent
 
-De **Todo Agent** is gespecialiseerd in het scannen van diverse documenten om specifieke taken, actiepunten en "to-do" items te identificeren. Het doel is om verspreide informatie te consolideren in zowel een overzichtelijk individueel rapport als een centrale verzamelbak (master-lijst).
+De **Todo Agent** scant diverse documenten op taken, actiepunten en to-do items en consolideert deze in een centrale verzamelbak. De agent produceert **geen losse JSON-uitvoer per bestand** — alle resultaten worden direct toegevoegd aan de master-lijst (`todo_master_list.jsonl`).
 
 ## 1. Doelstelling
-*   **Identificatie:** Het herkennen van expliciete en impliciete taken in ongestructureerde tekst.
-*   **Consolidatie:** Het verzamelen van actiepunten uit verschillende bronnen naar één centrale plek.
-*   **Overzicht:** Het bieden van een snelle analyse van de brontekst gekoppeld aan een duidelijke takenlijst.
+
+- **Identificatie**: Expliciete en impliciete taken herkennen in ongestructureerde tekst.
+- **Prioritering**: Belangrijke taken krijgen prioriteit `hoog`, overige taken `normaal`.
+- **Consolidatie**: Actiepunten uit verschillende bronbestanden samenvoegen in één centrale lijst.
 
 ## 2. Prompt Logica
-De agent hanteert de instructies uit `todo.json` met de volgende logica:
-1.  **Extractie:** Scannen op trefwoorden zoals "moet", "actie", "todo", "taak" of specifieke werkwoordsvormen die duiden op een opdracht.
-2.  **Analytische Samenvatting:** Het genereren van een korte context (analyse) zodat de gebruiker weet waar de taken vandaan komen.
-3.  **Database Integratie:** Het voorbereiden van een `database_file` object dat specifiek is ingericht voor de centrale verzamelbak (`todo_master_list.jsonl`).
-4.  **Validatie:** Strikte outputcontrole om te garanderen dat de lijst met todos altijd een array van strings is.
+
+1. **Extractie** — scannen op trefwoorden zoals "moet", "actie", "todo", "taak" en werkwoordsvormen die duiden op een opdracht.
+2. **Prioritering** — bepalen of een taak als belangrijk aangemerkt moet worden (`hoog`) of niet (`normaal`).
+3. **Sortering** — taken met prioriteit `hoog` worden bovenaan gezet in de output.
+4. **Analytische samenvatting** — een korte `analyse` biedt context over het brondocument.
+5. **Database-object** — het `database_file`-veld bevat datum, bronvermelding en de takenlijst, klaar voor de verzamelbak.
 
 ## 3. JSON Output Schema
-De agent levert data aan volgens dit schema:
-*   `analyse`: Een korte samenvatting van de brontekst.
-*   `todos`: Een lijst met objecten bevattende `taak` en `prioriteit`.
-*   `database_file`: Gegevens voor de master-lijst (datum, bronvermelding en items).
+
+```json
+{
+  "analyse": "string",
+  "todos": [
+    {
+      "taak": "string",
+      "prioriteit": "hoog | normaal",
+      "status": "open"
+    }
+  ],
+  "database_file": {
+    "datum": "string",
+    "bron": "string",
+    "items": [
+      {
+        "taak": "string",
+        "prioriteit": "hoog | normaal",
+        "status": "open"
+      }
+    ]
+  }
+}
+```
 
 ## 4. Configuratie
-De operationele parameters voor de Todo Agent:
 
 ```json
 {
   "provider": "ollama",
   "model": "gpt-oss:120b-cloud",
   "input_directory": "data/input/todos",
-  "output_directory": "data/output/todos",
   "done_directory": "data/done/todos",
-  "collection_file_path": "data/output/todos/master/todo_master_list.jsonl"
+  "collection_file_path": "data/output/todos/todo_master_list.jsonl"
 }
 ```
 
----
+> **Let op**: `output_directory` is bewust weggelaten. De agent slaat geen losse JSON op per bestand — alleen het `database_file`-object wordt via `collection_file_path` aan de centrale master-lijst toegevoegd.
 
-## 5. Voorbeeld Invoer (Ruwe Tekst)
-Invoer die deze agent effectief kan verwerken:
+## 5. Voorbeeld Invoer
 
 ```text
 Memo: Voorbereiding Kwartaalcijfers
-We moeten de presentatie voor de stakeholders uiterlijk vrijdag af hebben. 
-Sophie, kan jij de grafieken van de omzet trekken? 
-Vergeet niet dat de audit-resultaten ook nog in de bijlage moeten. 
-Mark gaat over de tekstuele toelichting bij de winst- en verliesrekening. 
+We moeten de presentatie voor de stakeholders uiterlijk vrijdag af hebben.
+Sophie, kan jij de grafieken van de omzet trekken?
+Vergeet niet dat de audit-resultaten ook nog in de bijlage moeten.
+Mark gaat over de tekstuele toelichting bij de winst- en verliesrekening.
 Het is belangrijk dat we morgen even kort afstemmen over de voortgang.
 ```
 
----
+## 6. Word Template (Jinja2-variabelen)
 
-## 6. Word Template (Jinja2)
-*Dit gedeelte wordt gebruikt voor het genereren van het uiteindelijke Word-rapport via de `docxtpl` library.*
+De todo-agent gebruikt geen Word-template — resultaten worden uitsluitend naar de centrale verzamelbak geschreven. Wil je toch een rapport genereren, voeg dan `template_path` en `report_directory` toe aan de configuratie en gebruik onderstaande variabelen:
 
-# Nieuwe Actiepunten Gevonden
-
-## Bron Analyse
-{{ analyse }}
-
----
-
-## To-Do Lijst
-{% if todos %}
-{% for todo in todos %}
-- [ ] {% if todo.prioriteit == 'hoog' %}**[PRIO]** {% endif %}{{ todo.taak }}
-{% endfor %}
-{% else %}
-*Geen specifieke actiepunten gevonden.*
-{% endif %}
-
----
-### Informatie
-**Bron:** {{ database_file.bron }}  
-**Datum van verwerking:** {{ database_file.datum }}
-
----
-*Dit document is gegenereerd door de Todo Agent en de taken zijn toegevoegd aan de master-lijst.*
+| Variabele | Beschrijving |
+| :--- | :--- |
+| `{{ analyse }}` | Korte samenvatting van het brondocument |
+| `{% for todo in todos %}` | Loop over taken (`todo.taak`, `todo.prioriteit`, `todo.status`) |
+| `{{ database_file.bron }}` | Bestandsnaam van het bronbestand |
+| `{{ database_file.datum }}` | Datum van verwerking |
