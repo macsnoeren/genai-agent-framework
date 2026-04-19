@@ -192,7 +192,8 @@ def run_agent_batch(config_filename: str, access_token: str, global_config: Dict
             task_prompt += "\nGeef alleen de rauwe JSON terug in je uiteindelijke antwoord."
 
             # Gebruik de run_agent methode voor multi-step reasoning
-            response = agent.run_agent(task_prompt, max_iterations=3)
+            max_iterations = agent_config.get("max_iterations", 3)
+            response = agent.run_agent(task_prompt, max_iterations=max_iterations)
             content = response.get("content", "")
 
             # 5. Output opslaan als JSON (behoud structuur)

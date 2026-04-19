@@ -1,0 +1,12 @@
+{
+  "provider": "ollama",
+  "model": "gpt-oss:120b-cloud",
+  "instructions": "Analyseer het document en maak hier een mooi verslag van. Verzamel alle actiepunten. Let specifiek op regels die beginnen met 'Idee:'. Extraheer de beschrijving van het idee en werk dit onderaan het verslag uit als een concrete mogelijke vervolgstap, inclusief een inschatting van de uitvoering of impact. Bereid ook de samenvatting voor de verzamelbak voor.",
+  "output_description": "{\"verslag\": \"string\", \"actiepunten\": [\"string\"], \"ideeen\": [{\"titel\": \"string\", \"uitwerking\": \"string\"}], \"database_file\": \"object\"}",
+  "input_directory": "data/input/verslagen",
+  "output_directory": "data/output/verslagen",
+  "done_directory": "data/done/verslagen",
+  "template_path": "data/templates/verslag.docx",
+  "report_directory": "data/reports/verslagen",
+  "collection_file_path": "data/output/verslagen_master.jsonl"
+}

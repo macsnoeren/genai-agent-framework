@@ -1,85 +1,81 @@
 # Documentatie: Verslag Agent
 
-De **Verslag Agent** is een veelzijdige AI-configuratie binnen het framework die is ontwikkeld om uiteenlopende documenten (zoals memo's, voortgangsrapportages of projectupdates) te analyseren. De agent synthetiseert de kerninhoud tot een helder verslag en extraheert relevante actiepunten voor verdere opvolging.
+De **Verslag Agent** analyseert uiteenlopende documenten (memo's, voortgangsrapportages, projectupdates) en synthetiseert de inhoud tot een helder verslag. Naast een narratieve samenvatting extraheert de agent actiepunten en werkt hij ideeën — herkenbaar aan de prefix `Idee:` — uit tot concrete vervolgstappen.
 
 ## 1. Doelstelling
-*   **Analytisch:** Het identificeren van de essentie in complexe documenten.
-*   **Synthese:** Het herschrijven van informatie naar een gestructureerd en leesbaar narratief.
-*   **Taakextractie:** Het isoleren van actiepunten en opdrachten die in de tekst verborgen zijn.
-*   **Idee-uitwerking:** Het herkennen van 'Idee:' tags en deze uitwerken tot mogelijke vervolgstappen.
+
+- **Analytisch**: De essentie van complexe documenten identificeren.
+- **Synthese**: Informatie herschrijven naar een gestructureerd, leesbaar narratief.
+- **Taakextractie**: Verborgen actiepunten en opdrachten isoleren.
+- **Idee-uitwerking**: `Idee:`-tags herkennen en uitwerken tot mogelijke vervolgstappen met een inschatting van uitvoering of impact.
 
 ## 2. Prompt Logica
-De agent hanteert de instructies uit `verslag.json` om een kwalitatieve samenvatting te genereren:
-1.  **Begrijpend Lezen:** De AI fungeert als een assistent die de context van het brondocument begrijpt.
-2.  **Narratieve Opbouw:** De focus ligt op het creëren van een "mooi verslag", wat duidt op een vloeiende schrijfstijl in plaats van enkel opsommingen.
-3.  **Lijstvorming:** Specifieke aandacht voor actiepunten die aan het einde van het verslag worden gegroepeerd.
-4.  **Idee-analyse:** Bij het herkennen van de prefix 'Idee:' zal de agent dit punt niet alleen samenvatten, maar proactief meedenken over de uitwerking.
-5.  **Validatie:** De output wordt strikt beperkt tot een JSON-object inclusief de nieuwe `ideeen` array.
+
+1. **Begrijpend lezen** — de AI begrijpt de context van het brondocument.
+2. **Narratieve opbouw** — focus op een vloeiende schrijfstijl, niet enkel opsommingen.
+3. **Actiepunten** — worden gegroepeerd in een aparte lijst aan het einde.
+4. **Idee-analyse** — bij de prefix `Idee:` denkt de agent proactief mee over uitwerking.
+5. **Verzamelbak** — een `database_file`-object wordt voorbereid voor de centrale `.jsonl`-verzamelbak.
 
 ## 3. JSON Output Schema
-De agent levert de data aan volgens dit schema:
-*   `verslag`: Een string bevattende de volledige tekstuele analyse/samenvatting.
-*   `actiepunten`: Een array van strings, waarbij elk item een uniek actiepunt vertegenwoordigt.
-*   `ideeen`: Een lijst met objecten bevattende de `titel` van het idee en een gedetailleerde `uitwerking`.
+
+```json
+{
+  "verslag": "string",
+  "actiepunten": ["string"],
+  "ideeen": [
+    {
+      "titel": "string",
+      "uitwerking": "string"
+    }
+  ],
+  "database_file": {}
+}
+```
+
+Het veld `database_file` bevat een samenvatting voor de centrale verzamelbak (`verslagen_master.jsonl`).
 
 ## 4. Configuratie
-De operationele parameters voor de Verslag Agent:
 
 ```json
 {
   "provider": "ollama",
   "model": "gpt-oss:120b-cloud",
-  "input_directory": "data/input",
-  "output_directory": "data/output",
-  "done_directory": "data/done",
-  "report_directory": "data/reports",
+  "input_directory": "data/input/verslagen",
+  "output_directory": "data/output/verslagen",
+  "done_directory": "data/done/verslagen",
+  "template_path": "data/templates/verslag.docx",
+  "report_directory": "data/reports/verslagen",
   "collection_file_path": "data/output/verslagen_master.jsonl"
 }
 ```
 
----
+Het Word-template staat op `data/templates/verslag.docx`.
 
-## 5. Voorbeeld Invoer (Ruwe Tekst)
-Een voorbeeld van invoer die deze agent effectief kan verwerken:
+## 5. Voorbeeld Invoer
 
 ```text
 Projectstatus Update - Cloud Migratie
-We zijn deze week begonnen met de voorbereidingen voor de migratie van de legacy servers. Sophie heeft de inventarisatie afgerond, maar merkt op dat er nog onduidelijkheid is over de database-rechten. Mark moet dit voor woensdag uitzoeken. 
+We zijn deze week begonnen met de voorbereidingen voor de migratie van de legacy servers.
+Sophie heeft de inventarisatie afgerond, maar merkt op dat er nog onduidelijkheid is over
+de database-rechten. Mark moet dit voor woensdag uitzoeken.
 
-De algemene voortgang is goed. Erik is bezig met het inrichten van de testomgeving. Sophie gaat volgende week de eerste tests runnen. Vergeet niet dat we voor de go-live nog een security audit moeten aanvragen bij de IT-afdeling.
+De algemene voortgang is goed. Erik is bezig met het inrichten van de testomgeving.
+Sophie gaat volgende week de eerste tests runnen. Vergeet niet dat we voor de go-live
+nog een security audit moeten aanvragen bij de IT-afdeling.
+
+Idee: Stel een geautomatiseerde dagelijkse backup in voor de migratieperiode.
 ```
 
----
+De `Idee:`-regel wordt door de agent herkend en uitgewerkt in het `ideeen`-veld.
 
-## 6. Word Template (Jinja2)
-*Dit gedeelte wordt gebruikt voor het genereren van het uiteindelijke Word-rapport via de `docxtpl` library.*
+## 6. Word Template (Jinja2-variabelen)
 
-# Documentanalyse & Verslag
+Het template `data/templates/verslag.docx` gebruikt de volgende variabelen:
 
-## Verslag
-{{ verslag }}
-
----
-
-## Actiepunten
-{% if actiepunten %}
-{% for actie in actiepunten %}
-- {{ actie }}
-{% endfor %}
-{% else %}
-*Geen expliciete actiepunten gevonden in het brondocument.*
-{% endif %}
-
----
-
-{% if ideeen %}
-## Mogelijke Vervolgstappen
-{% for item in ideeen %}
-### Idee: {{ item.titel }}
-**Uitwerking:** {{ item.uitwerking }}
-
-{% endfor %}
-{% endif %}
-
----
-*Dit document is gegenereerd door de Verslag Agent op basis van automatische tekstanalyse.*
+| Variabele | Beschrijving |
+| :--- | :--- |
+| `{{ verslag }}` | De volledige tekstuele samenvatting |
+| `{% for actie in actiepunten %}` | Loop over actiepunten (strings) |
+| `{% if ideeen %}` | Conditioneel blok — alleen zichtbaar als er ideeën zijn |
+| `{% for item in ideeen %}` | Loop over ideeën (`item.titel`, `item.uitwerking`) |
