@@ -1,4 +1,5 @@
 @echo off
+xcopy ..\..\data\output\todos\todo_master_list.jsonl
 echo Webserver wordt gestart vanuit de master map...
 REM cd /d "%~dp0"
 REM Start de browser met de juiste URL naar de todo pagina
