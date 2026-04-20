@@ -111,42 +111,6 @@ def run_agent_batch(config_filename: str, access_token: str, global_config: Dict
     """
     agent_config = load_agent_config(config_filename)
 
-    # Selecteer de provider op basis van de configuratie
-    provider_type = agent_config.get("provider", "ollama").lower()
-
-    if provider_type == "docdialog":
-        if access_token == "VERVANG_DOOR_JE_ECHTE_TOKEN":
-            logger.error(f"DocumentDialogue geselecteerd voor {config_filename} maar geen geldige ACCESS_TOKEN gevonden.")
-            return
-        client = DocumentDialogueClient(access_token)
-    else:
-        # Standaard fallback naar Ollama
-        ollama_url = global_config.get("OLLAMA_BASE_URL", "http://localhost:11434")
-        client = OllamaClient(base_url=ollama_url)
-    
-    agent = AIAgent(client)
-
-    print(f"Agent gestart met provider: {type(client).__name__}")
-
-    print("Beschikbare modellen ophalen...")
-    models = agent.list_models()
-    
-    selected_model = agent_config.get("model")
-
-    if selected_model:
-        print(f"Model geselecteerd uit configuratie: {selected_model}")
-    elif models:
-        selected_model = models[0].get("id")
-        print(f"Geen model opgegeven in agent.json. Automatisch eerste model geselecteerd: {selected_model}")
-    else:
-        print("Geen modellen gevonden op de client. We gaan door zonder specifiek model.")
-        selected_model = None
-
-    print("\nNieuwe chat aanmaken...")
-    chat_id = agent.create_chat(model_id=selected_model)
-    print(f"Chat aangemaakt met ID: {chat_id}")
-    logger.info(f"Actieve chat_id voor agent: {chat_id}")
-    
     # Paden instellen vanuit configuratie
     input_dir = Path(agent_config.get("input_directory", "data/input"))
     output_dir = Path(agent_config.get("output_directory", "data/output"))
@@ -165,11 +129,45 @@ def run_agent_batch(config_filename: str, access_token: str, global_config: Dict
         print(f"Geen bestanden gevonden in {input_dir}")
         return
 
+    # --- LLM Initialisatie (pas na vinden van bestanden) ---
+    provider_type = agent_config.get("provider", "ollama").lower()
+    if provider_type == "docdialog":
+        if access_token == "VERVANG_DOOR_JE_ECHTE_TOKEN":
+            logger.error(f"DocumentDialogue geselecteerd voor {config_filename} maar geen geldige ACCESS_TOKEN gevonden.")
+            return
+        client = DocumentDialogueClient(access_token)
+    else:
+        ollama_url = global_config.get("OLLAMA_BASE_URL", "http://localhost:11434")
+        client = OllamaClient(base_url=ollama_url)
+    
+    agent = AIAgent(client)
+    print(f"Agent gestart met provider: {type(client).__name__}")
+
+    print("Beschikbare modellen ophalen...")
+    models = agent.list_models()
+    
+    selected_model = agent_config.get("model")
+    if selected_model:
+        print(f"Model geselecteerd uit configuratie: {selected_model}")
+    elif models:
+        selected_model = models[0].get("id")
+        print(f"Geen model opgegeven in agent.json. Automatisch eerste model geselecteerd: {selected_model}")
+    else:
+        print("Geen modellen gevonden op de client. We gaan door zonder specifiek model.")
+        selected_model = None
+
     print(f"\nStart verwerking van {len(files)} bestanden...")
 
     for file_path in files:
         rel_path = file_path.relative_to(input_dir)
         print(f"\n--- Bezig met: {rel_path} ---")
+
+        # Start een schone chat per bestand
+        print("Nieuwe chat aanmaken...")
+        chat_id = agent.create_chat(model_id=selected_model)
+        print(f"Chat aangemaakt met ID: {chat_id}")
+        logger.info(f"Actieve chat_id voor agent: {chat_id}")
+
         try:
             # 4. Bestand uploaden of inhoud extraheren als fallback
             file_content = ""
@@ -249,10 +247,11 @@ def run_agent_batch(config_filename: str, access_token: str, global_config: Dict
             logger.error(f"Fout bij verwerken van {file_path.name}: {e}")
             print(f"Fout bij {file_path.name}: {e}")
 
-    # 7. Chat verwijderen na succesvolle verwerking
-    print("\nOpschonen...")
-    agent.delete_current_chat()
-    print("Chat verwijderd op server/client. Batch-verwerking voltooid.")
+        # Sluit de chat af na verwerking van het bestand
+        agent.delete_current_chat()
+        print(f"Chat {chat_id} gesloten.")
+
+    print("\nBatch-verwerking voltooid.")
 
 def main():
     parser = argparse.ArgumentParser(description="Draai de AI Agent batch verwerking met een specifieke configuratie.")
