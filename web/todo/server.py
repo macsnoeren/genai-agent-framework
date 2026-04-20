@@ -8,7 +8,7 @@ class TodoHandler(http.server.SimpleHTTPRequestHandler):
             post_data = self.rfile.read(content_length)
             
             # Pad naar de jsonl file (gezien vanaf project root)
-            file_path = 'todo_master_list.jsonl'
+            file_path = '../data/output/todos/todo_master_list.jsonl'
             
             try:
                 with open(file_path, 'wb') as f:
