@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Dict, Any, Optional, List, Union
 from datetime import datetime
 import logging
+import time
 import requests
 import json
 import shutil
@@ -113,12 +114,13 @@ def run_agent_batch(config_filename: str, access_token: str, global_config: Dict
 
     # Paden instellen vanuit configuratie
     input_dir = Path(agent_config.get("input_directory", "data/input"))
-    output_dir = Path(agent_config.get("output_directory", "data/output"))
+    output_dir_str = agent_config.get("output_directory")
+    output_dir = Path(output_dir_str) if output_dir_str else None
     done_dir = Path(agent_config.get("done_directory", "data/done"))
     report_dir = Path(agent_config.get("report_directory", "data/reports"))
 
     # Zorg dat mappen bestaan
-    for d in [input_dir, output_dir, done_dir, report_dir]:
+    for d in [d for d in [input_dir, output_dir, done_dir, report_dir] if d]:
         try:
             d.mkdir(parents=True, exist_ok=True)
         except Exception as e:
@@ -126,7 +128,8 @@ def run_agent_batch(config_filename: str, access_token: str, global_config: Dict
 
     files = [f for f in input_dir.rglob('*') if f.is_file()]
     if not files:
-        print(f"Geen bestanden gevonden in {input_dir}")
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug(f"Geen bestanden gevonden in {input_dir}")
         return
 
     # --- LLM Initialisatie (pas na vinden van bestanden) ---
@@ -194,10 +197,11 @@ def run_agent_batch(config_filename: str, access_token: str, global_config: Dict
             response = agent.run_agent(task_prompt, max_iterations=max_iterations)
             content = response.get("content", "")
 
-            # 5. Output opslaan als JSON (behoud structuur)
-            output_file = output_dir / rel_path.with_suffix('.json')
-            output_file.parent.mkdir(parents=True, exist_ok=True)
-            output_file.write_text(content, encoding='utf-8')
+            # 5. Output opslaan als JSON (behoud structuur) - optioneel
+            if output_dir:
+                output_file = output_dir / rel_path.with_suffix('.json')
+                output_file.parent.mkdir(parents=True, exist_ok=True)
+                output_file.write_text(content, encoding='utf-8')
 
             # 5b. Optioneel rapport genereren in huisstijl
             template_path = agent_config.get("template_path")
@@ -235,13 +239,13 @@ def run_agent_batch(config_filename: str, access_token: str, global_config: Dict
 
                     target_done_path.parent.mkdir(parents=True, exist_ok=True)
                     shutil.move(str(file_path), str(target_done_path))
-                    print(f"Succesvol verwerkt: {output_file.name}")
+                    print(f"Succesvol verwerkt: {file_path.name}")
                 except Exception as e:
                     logger.info(f"Informatie: Bestand kon niet worden verplaatst naar done: {e}")
-                    print(f"Succesvol verwerkt (niet verplaatst naar done): {output_file.name}")
+                    print(f"Succesvol verwerkt (niet verplaatst naar done): {file_path.name}")
             else:
                 logger.info(f"Informatie: Done directory '{done_dir}' bestaat niet. Bestand is niet verplaatst.")
-                print(f"Succesvol verwerkt (done map ontbreekt): {output_file.name}")
+                print(f"Succesvol verwerkt (done map ontbreekt): {file_path.name}")
 
         except Exception as e:
             logger.error(f"Fout bij verwerken van {file_path.name}: {e}")
@@ -260,6 +264,8 @@ def main():
         nargs="?", 
         help="Pad naar het agent JSON configuratiebestand. Indien niet opgegeven worden alle JSON bestanden in 'agents/' uitgevoerd."
     )
+    parser.add_argument("--watch", action="store_true", help="Blijf continu controleren op nieuwe bestanden.")
+    parser.add_argument("--interval", type=int, default=10, help="Interval in seconden tussen controles (default: 10).")
     args = parser.parse_args()
 
     global_config = load_config()
@@ -276,14 +282,23 @@ def main():
             logger.error("Geen agent configuratiebestanden gevonden in de 'agents/' directory.")
             return
 
-    for config_file in config_files:
-        print(f"\n" + "="*50)
-        print(f"START VERWERKING AGENT: {config_file}")
-        print("="*50 + "\n")
-        try:
-            run_agent_batch(config_file, access_token, global_config)
-        except Exception as e:
-            logger.error(f"Fout bij verwerken van agent {config_file}: {e}")
+    try:
+        while True:
+            for config_file in config_files:
+                if not args.watch:
+                    print(f"\n" + "="*50)
+                    print(f"START VERWERKING AGENT: {config_file}")
+                    print("="*50 + "\n")
+                try:
+                    run_agent_batch(config_file, access_token, global_config)
+                except Exception as e:
+                    logger.error(f"Fout bij verwerken van agent {config_file}: {e}")
+            
+            if not args.watch:
+                break
+            time.sleep(args.interval)
+    except KeyboardInterrupt:
+        print("\nVerwerking gestopt door gebruiker.")
 
 if __name__ == "__main__":
     main()
