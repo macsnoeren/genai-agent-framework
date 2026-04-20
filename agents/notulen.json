@@ -6,7 +6,7 @@
   "input_directory": "data/input/notulen",
   "output_directory": "data/output/notulen",
   "done_directory": "data/done/notulen",
-  "template_path": "data/templates/notulen.docx",
+  "template_path": "templates/notulen.docx",
   "report_directory": "data/reports/notulen",
   "collection_file_path": "data/output/vergaderingen_master.jsonl"
 }

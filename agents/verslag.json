@@ -6,7 +6,7 @@
   "input_directory": "data/input/verslagen",
   "output_directory": "data/output/verslagen",
   "done_directory": "data/done/verslagen",
-  "template_path": "data/templates/verslag.docx",
+  "template_path": "templates/verslag.docx",
   "report_directory": "data/reports/verslagen",
   "collection_file_path": "data/output/verslagen_master.jsonl"
 }
